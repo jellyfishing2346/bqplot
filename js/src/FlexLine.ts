@@ -38,50 +38,41 @@ export class FlexLine extends Lines {
 
   create_listeners() {
     super.create_listeners();
-    this.listenTo(
-      this.model,
-      'change:labels_visibility',
-      this.update_legend_labels
-    );
   }
 
   draw_legend(elem, x_disp, y_disp, inter_x_disp, inter_y_disp) {
     const g_elements = elem
       .selectAll('.legend' + this.uuid)
-      .data(this.model.mark_data, (d, i) => {
-        return d.name;
-      });
+      .data(this.model.mark_data, (d: any) => d.name);
 
     const that = this;
     const rect_dim = inter_y_disp * 0.8;
-    g_elements
+
+    const g_enter = g_elements
       .enter()
       .append('g')
       .attr('class', 'legend' + this.uuid)
       .attr('transform', (d, i) => {
         return 'translate(0, ' + (i * inter_y_disp + y_disp) + ')';
-      })
+      });
+
+    g_enter
       .append('line')
-      .style('stroke', (d, i) => {
-        return that.get_colors(i);
-      })
+      .style('stroke', (d, i) => that.get_mark_color(d, i))
       .attr('x1', 0)
       .attr('x2', rect_dim)
       .attr('y1', rect_dim / 2)
       .attr('y2', rect_dim / 2);
 
-    g_elements
+    g_enter
       .append('text')
       .attr('class', 'legendtext')
       .attr('x', rect_dim * 1.2)
       .attr('y', rect_dim / 2)
       .attr('dy', '0.35em')
-      .text((d, i) => {
-        return that.model.get('labels')[i];
-      })
-      .style('fill', (d, i) => {
-        return that.get_colors(i);
-      });
+      .text((d, i) => that.model.get('labels')[i])
+      .style('fill', (d, i) => that.get_mark_color(d, i));
+
     const max_length = d3.max(this.model.get('labels'), (d: any[]) => {
       return d.length;
     });
@@ -117,11 +108,12 @@ export class FlexLine extends Lines {
 
   draw() {
     this.set_ranges();
+    const xScale = this.scales.x;
+    const yScale = this.scales.y;
+
     let curves_sel: d3.Selection<any, any, any, any> = this.d3el
       .selectAll('.curve')
-      .data(this.model.mark_data, (d: any, i) => {
-        return d.name;
-      });
+      .data(this.model.mark_data, (d: any, i) => d.name);
 
     curves_sel
       .exit()
@@ -129,11 +121,26 @@ export class FlexLine extends Lines {
       .duration(this.parent.model.get('animation_duration'))
       .remove();
 
-    curves_sel = curves_sel
-      .enter()
-      .append('g')
-      .attr('class', 'curve')
-      .merge(curves_sel);
+    const newCurves = curves_sel.enter().append('g').attr('class', 'curve');
+    newCurves
+      .append('text')
+      .attr('class', 'curve_label')
+      .attr('text-anchor', 'end')
+      .attr('dominant-baseline', 'middle');
+
+    curves_sel = newCurves.merge(curves_sel);
+
+    curves_sel.select('.curve_label')
+      .attr('display', this.model.get('labels_visibility') === 'label' ? 'inline' : 'none')
+      .text((d: any, i: number) => this.model.get('labels')[i] || d.name)
+      .attr('x', (d: any) => {
+        const last = d.values[d.values.length - 1];
+        return last ? xScale.scale(last.x2) - 5 : 0;
+      })
+      .attr('y', (d: any) => {
+        const last = d.values[d.values.length - 1];
+        return last ? yScale.scale(last.y2) : 0;
+      });
 
     const x_scale = this.scales.x,
       y_scale = this.scales.y;
@@ -185,17 +192,38 @@ export class FlexLine extends Lines {
       .selectAll('.line-elem')
       .transition('relayout')
       .duration(this.parent.model.get('animation_duration'))
-      .attr('x1', (d: any) => {
-        return x_scale.scale(d.x1);
+      .attr('x1', (d: any) => x_scale.scale(d.x1))
+      .attr('x2', (d: any) => x_scale.scale(d.x2))
+      .attr('y1', (d: any) => y_scale.scale(d.y1))
+      .attr('y2', (d: any) => y_scale.scale(d.y2));
+
+    this.d3el
+      .selectAll('.curve')
+      .select('.curve_label')
+      .attr('x', (d: any) => {
+        const last = d.values[d.values.length - 1];
+        return last ? x_scale.scale(last.x2) - 5 : 0;
       })
-      .attr('x2', (d: any) => {
-        return x_scale.scale(d.x2);
-      })
-      .attr('y1', (d: any) => {
-        return y_scale.scale(d.y1);
-      })
-      .attr('y2', (d: any) => {
-        return y_scale.scale(d.y2);
+      .attr('y', (d: any) => {
+        const last = d.values[d.values.length - 1];
+        return last ? y_scale.scale(last.y2) : 0;
       });
+  }
+  
+  update_labels() {
+    const labels = this.model.get('labels');
+    this.d3el
+      .selectAll('.curve')
+      .select('.curve_label')
+      .text((d: any, i: number) => labels[i] || d.name);
+  }
+
+  update_legend_labels() {
+    const labels_visibility = this.model.get('labels_visibility');
+    if (labels_visibility === 'none') {
+      this.d3el.selectAll('.curve_label').attr('display', 'none');
+    } else if (labels_visibility === 'label') {
+      this.d3el.selectAll('.curve_label').attr('display', 'inline');
+    }
   }
 }
