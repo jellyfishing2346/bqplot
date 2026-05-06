@@ -14,21 +14,19 @@
  */
 
 import * as d3 from 'd3';
-// var d3 =Object.assign({}, require("d3-array"), require("d3-selection"));
 import { Lines } from './Lines';
 
 export class FlexLine extends Lines {
-  render() {
+  render(): Promise<void> {
     const base_render_promise = super.render.apply(this);
-    const that = this;
 
     return base_render_promise.then(() => {
-      that.create_listeners();
-      that.draw();
+      this.create_listeners();
+      this.draw();
     });
   }
 
-  set_ranges() {
+  set_ranges(): void {
     super.set_ranges();
     const width_scale = this.scales.width;
     if (width_scale) {
@@ -36,16 +34,21 @@ export class FlexLine extends Lines {
     }
   }
 
-  create_listeners() {
+  create_listeners(): void {
     super.create_listeners();
   }
 
-  draw_legend(elem, x_disp, y_disp, inter_x_disp, inter_y_disp) {
+  draw_legend(
+    elem: d3.Selection<any, any, any, any>,
+    x_disp: number,
+    y_disp: number,
+    inter_x_disp: number,
+    inter_y_disp: number
+  ): [number, number] {
     const g_elements = elem
       .selectAll('.legend' + this.uuid)
       .data(this.model.mark_data, (d: any) => d.name);
 
-    const that = this;
     const rect_dim = inter_y_disp * 0.8;
 
     const g_enter = g_elements
@@ -58,7 +61,7 @@ export class FlexLine extends Lines {
 
     g_enter
       .append('line')
-      .style('stroke', (d, i) => that.get_mark_color(d, i))
+      .style('stroke', (d, i) => this.get_mark_color(d, i))
       .attr('x1', 0)
       .attr('x2', rect_dim)
       .attr('y1', rect_dim / 2)
@@ -70,50 +73,51 @@ export class FlexLine extends Lines {
       .attr('x', rect_dim * 1.2)
       .attr('y', rect_dim / 2)
       .attr('dy', '0.35em')
-      .text((d, i) => that.model.get('labels')[i])
-      .style('fill', (d, i) => that.get_mark_color(d, i));
+      .text((d, i) => this.model.get('labels')[i])
+      .style('fill', (d, i) => this.get_mark_color(d, i));
 
-    const max_length = d3.max(this.model.get('labels'), (d: any[]) => {
-      return d.length;
-    });
+    const max_length =
+      d3.max(this.model.get('labels'), (d: any) => {
+        return d ? d.length : 0;
+      }) || 0;
 
     g_elements.exit().remove();
-    return [this.model.mark_data.length, max_length];
+    return [this.model.mark_data.length, max_length as number];
   }
 
-  set_positional_scales() {
+  set_positional_scales(): void {
     const x_scale = this.scales.x,
       y_scale = this.scales.y;
-    this.listenTo(x_scale, 'domain_changed', function () {
+    this.listenTo(x_scale, 'domain_changed', () => {
       if (!this.model.dirty) {
         this.draw();
       }
     });
-    this.listenTo(y_scale, 'domain_changed', function () {
+    this.listenTo(y_scale, 'domain_changed', () => {
       if (!this.model.dirty) {
         this.draw();
       }
     });
   }
 
-  initialize_additional_scales() {
+  initialize_additional_scales(): void {
     const color_scale = this.scales.color;
     if (color_scale) {
-      this.listenTo(color_scale, 'domain_changed', function () {
+      this.listenTo(color_scale, 'domain_changed', () => {
         this.draw();
       });
       color_scale.on('color_scale_range_changed', this.draw, this);
     }
   }
 
-  draw() {
+  draw(): void {
     this.set_ranges();
     const xScale = this.scales.x;
     const yScale = this.scales.y;
 
     let curves_sel: d3.Selection<any, any, any, any> = this.d3el
       .selectAll('.curve')
-      .data(this.model.mark_data, (d: any, i) => d.name);
+      .data(this.model.mark_data, (d: any) => d.name);
 
     curves_sel
       .exit()
@@ -130,8 +134,12 @@ export class FlexLine extends Lines {
 
     curves_sel = newCurves.merge(curves_sel);
 
-    curves_sel.select('.curve_label')
-      .attr('display', this.model.get('labels_visibility') === 'label' ? 'inline' : 'none')
+    curves_sel
+      .select('.curve_label')
+      .attr(
+        'display',
+        this.model.get('labels_visibility') === 'label' ? 'inline' : 'none'
+      )
       .text((d: any, i: number) => this.model.get('labels')[i] || d.name)
       .attr('x', (d: any) => {
         const last = d.values[d.values.length - 1];
@@ -145,12 +153,11 @@ export class FlexLine extends Lines {
     const x_scale = this.scales.x,
       y_scale = this.scales.y;
 
-    const that = this;
     curves_sel.nodes().forEach((elem, index) => {
       let lines = d3
         .select(elem)
-        .selectAll<SVGLineElement, undefined>('line')
-        .data(that.model.mark_data[index].values);
+        .selectAll<SVGLineElement, any>('line')
+        .data(this.model.mark_data[index].values);
       lines = lines.enter().append('line').merge(lines);
       lines
         .attr('class', 'line-elem')
@@ -166,14 +173,14 @@ export class FlexLine extends Lines {
         .attr('y2', (d: any) => {
           return y_scale.scale(d.y2);
         })
-        .attr('stroke', that.get_mark_color.bind(that))
-        .attr('stroke-width', (d) => {
-          return that.get_element_width(d);
+        .attr('stroke', (d: any, i: number) => this.get_mark_color(d, i))
+        .attr('stroke-width', (d: any) => {
+          return this.get_element_width(d);
         });
     });
   }
 
-  get_element_width(d) {
+  get_element_width(d: { size?: number }): number {
     const width_scale = this.scales.width;
     if (width_scale !== undefined && d.size !== undefined) {
       return width_scale.scale(d.size);
@@ -181,7 +188,7 @@ export class FlexLine extends Lines {
     return this.model.get('stroke_width');
   }
 
-  relayout() {
+  relayout(): void {
     this.set_ranges();
 
     const x_scale = this.scales.x,
@@ -209,8 +216,8 @@ export class FlexLine extends Lines {
         return last ? y_scale.scale(last.y2) : 0;
       });
   }
-  
-  update_labels() {
+
+  update_labels(): void {
     const labels = this.model.get('labels');
     this.d3el
       .selectAll('.curve')
@@ -218,12 +225,9 @@ export class FlexLine extends Lines {
       .text((d: any, i: number) => labels[i] || d.name);
   }
 
-  update_legend_labels() {
+  update_legend_labels(): void {
     const labels_visibility = this.model.get('labels_visibility');
-    if (labels_visibility === 'none') {
-      this.d3el.selectAll('.curve_label').attr('display', 'none');
-    } else if (labels_visibility === 'label') {
-      this.d3el.selectAll('.curve_label').attr('display', 'inline');
-    }
+    const display = labels_visibility === 'label' ? 'inline' : 'none';
+    this.d3el.selectAll('.curve_label').attr('display', display);
   }
 }
